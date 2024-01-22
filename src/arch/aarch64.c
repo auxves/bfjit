@@ -39,7 +39,7 @@ void asm_decrement_head_value(Nob_String_Builder* sb, uint32_t value) {
 
 void asm_write(Nob_String_Builder* sb) {
     nob_da_append_many(sb, "\xFF\x43\x00\xD1", 4); // sub sp, sp, 16
-    nob_da_append_many(sb, "\xE0\x03\x00\xF9", 4); // str x0, [sp]
+    nob_da_append_many(sb, "\xE0\x7B\x00\xA9", 4); // stp x0, x30, [sp]
 
     nob_da_append_many(sb, "\xE1\x03\x00\xAA", 4); // mov x1, x0
     asm_mov_constant(sb, 0, 1);
@@ -47,13 +47,13 @@ void asm_write(Nob_String_Builder* sb) {
     asm_mov_constant(sb, 9, (uint64_t)get_platform_write_address());
     nob_da_append_many(sb, "\x20\x01\x3F\xD6", 4); // blr x9
 
-    nob_da_append_many(sb, "\xE0\x03\x40\xF9", 4); // ldr x0, [sp]
+    nob_da_append_many(sb, "\xE0\x7B\x40\xA9", 4); // ldp x0, x30, [sp]
     nob_da_append_many(sb, "\xFF\x43\x00\x91", 4); // add sp, sp, 16
 }
 
 void asm_read(Nob_String_Builder* sb) {
     nob_da_append_many(sb, "\xFF\x43\x00\xD1", 4); // sub sp, sp, 16
-    nob_da_append_many(sb, "\xE0\x03\x00\xF9", 4); // str x0, [sp]
+    nob_da_append_many(sb, "\xE0\x7B\x00\xA9", 4); // stp x0, x30, [sp]
 
     nob_da_append_many(sb, "\xE1\x03\x00\xAA", 4); // mov x1, x0
     asm_mov_constant(sb, 0, 0);
@@ -61,7 +61,7 @@ void asm_read(Nob_String_Builder* sb) {
     asm_mov_constant(sb, 9, (uint64_t)get_platform_read_address());
     nob_da_append_many(sb, "\x20\x01\x3F\xD6", 4); // blr x9
     
-    nob_da_append_many(sb, "\xE0\x03\x40\xF9", 4); // ldr x0, [sp]
+    nob_da_append_many(sb, "\xE0\x7B\x40\xA9", 4); // ldp x0, x30, [sp]
     nob_da_append_many(sb, "\xFF\x43\x00\x91", 4); // add sp, sp, 16
 }
 
