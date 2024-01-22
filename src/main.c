@@ -1,36 +1,71 @@
-#include <stdio.h>
-#include <stdint.h>
-
-#include <sys/mman.h>
-
 #define NOB_IMPLEMENTATION
 #include "nob.h"
 
+#include "platform.h"
+#include "arch.h"
+
+#ifdef _WIN32
+    #include "platform/windows.c"
+#else
+    #include "platform/posix.c"
+#endif
+
+#if __aarch64__
+    #include "arch/aarch64.c"
+#elif __x86_64__
+    #include "arch/x86_64.c"
+#endif
+
 #define JIT_MEMORY_CAP (10*1000*1000)
 
-typedef enum {
-    OP_INC             = '+',
-    OP_DEC             = '-',
-    OP_LEFT            = '<',
-    OP_RIGHT           = '>',
-    OP_OUTPUT          = '.',
-    OP_INPUT           = ',',
-    OP_JUMP_IF_ZERO    = '[',
+typedef struct
+{
+    size_t operand_byte_addr;
+    size_t src_byte_addr;
+    size_t dst_op_index;
+} Backpatch;
+
+typedef struct
+{
+    Backpatch *items;
+    size_t count;
+    size_t capacity;
+} Backpatches;
+
+typedef struct
+{
+    size_t *items;
+    size_t count;
+    size_t capacity;
+} Addrs;
+
+typedef enum
+{
+    OP_INC = '+',
+    OP_DEC = '-',
+    OP_LEFT = '<',
+    OP_RIGHT = '>',
+    OP_OUTPUT = '.',
+    OP_INPUT = ',',
+    OP_JUMP_IF_ZERO = '[',
     OP_JUMP_IF_NONZERO = ']',
 } Op_Kind;
 
-typedef struct {
+typedef struct
+{
     Op_Kind kind;
     size_t operand;
 } Op;
 
-typedef struct {
+typedef struct
+{
     Op *items;
     size_t count;
     size_t capacity;
 } Ops;
 
-typedef struct {
+typedef struct
+{
     Nob_String_View content;
     size_t pos;
 } Lexer;
@@ -49,12 +84,6 @@ char lexer_next(Lexer *l)
     if (l->pos >= l->content.count) return 0;
     return l->content.data[l->pos++];
 }
-
-typedef struct {
-    size_t *items;
-    size_t count;
-    size_t capacity;
-} Addrs;
 
 bool interpret(Ops ops)
 {
@@ -133,31 +162,8 @@ defer:
     return result;
 }
 
-typedef struct {
-    void (*run)(void *memory);
-    size_t len;
-} Code;
-
-void free_code(Code code)
+ExecutableBuffer jit_compile(Ops ops)
 {
-    munmap(code.run, code.len);
-}
-
-typedef struct {
-    size_t operand_byte_addr;
-    size_t src_byte_addr;
-    size_t dst_op_index;
-} Backpatch;
-
-typedef struct {
-    Backpatch *items;
-    size_t count;
-    size_t capacity;
-} Backpatches;
-
-bool jit_compile(Ops ops, Code *code)
-{
-    bool result = true;
     Nob_String_Builder sb = {0};
     Backpatches backpatches = {0};
     Addrs addrs = {0};
@@ -167,60 +173,37 @@ bool jit_compile(Ops ops, Code *code)
         nob_da_append(&addrs, sb.count);
         switch (op.kind) {
             case OP_INC: {
-                assert(op.operand < 256 && "TODO: support bigger operands");
-                nob_sb_append_cstr(&sb, "\x80\x07"); // add byte[rdi],
-                nob_da_append(&sb, op.operand&0xFF);
+                asm_increment_head_value(&sb, op.operand);
             } break;
 
             case OP_DEC: {
-                assert(op.operand < 256 && "TODO: support bigger operands");
-                nob_sb_append_cstr(&sb, "\x80\x2f"); // sub byte[rdi],
-                nob_da_append(&sb, op.operand&0xFF);
+                asm_decrement_head_value(&sb, op.operand);
             } break;
 
             // TODO: range checks for OP_LEFT and OP_RIGHT
             case OP_LEFT: {
-                nob_sb_append_cstr(&sb, "\x48\x81\xef"); // sub rdi,
-                uint32_t operand = (uint32_t)op.operand;
-                nob_da_append_many(&sb, &operand, sizeof(operand));
+                asm_move_head_left(&sb, op.operand);
             } break;
 
             case OP_RIGHT: {
-                nob_sb_append_cstr(&sb, "\x48\x81\xc7"); // add rdi,
-                uint32_t operand = (uint32_t)op.operand;
-                nob_da_append_many(&sb, &operand, sizeof(operand));
+                asm_move_head_right(&sb, op.operand);
             } break;
 
             case OP_OUTPUT: {
                 for (size_t i = 0; i < op.operand; ++i) {
-                    nob_sb_append_cstr(&sb, "\x57");                            // push rdi
-                    nob_da_append_many(&sb, "\x48\xc7\xc0\x01\x00\x00\x00", 7); // mov rax, 1
-                    nob_sb_append_cstr(&sb, "\x48\x89\xfe");                    // mov rsi, rdi
-                    nob_da_append_many(&sb, "\x48\xc7\xc7\x01\x00\x00\x00", 7); // mov rdi, 1
-                    nob_da_append_many(&sb, "\x48\xc7\xc2\x01\x00\x00\x00", 7); // mov rdx, 1
-                    nob_sb_append_cstr(&sb, "\x0f\x05");                        // syscall
-                    nob_sb_append_cstr(&sb, "\x5f");                            // pop rdi
+                    asm_write(&sb);
                 }
             } break;
 
             case OP_INPUT: {
                 for (size_t i = 0; i < op.operand; ++i) {
-                    nob_sb_append_cstr(&sb, "\x57");                            // push rdi
-                    nob_da_append_many(&sb, "\x48\xc7\xc0\x00\x00\x00\x00", 7); // mov rax, 0
-                    nob_sb_append_cstr(&sb, "\x48\x89\xfe");                    // mov rsi, rdi
-                    nob_da_append_many(&sb, "\x48\xc7\xc7\x00\x00\x00\x00", 7); // mov rdi, 0
-                    nob_da_append_many(&sb, "\x48\xc7\xc2\x01\x00\x00\x00", 7); // mov rdx, 1
-                    nob_sb_append_cstr(&sb, "\x0f\x05");                        // syscall
-                    nob_sb_append_cstr(&sb, "\x5f");                            // pop rdi
+                    asm_read(&sb);
                 }
             } break;
 
             case OP_JUMP_IF_ZERO: {
-                nob_sb_append_cstr(&sb, "\x8a\x07");     // mov al, byte [rdi]
-                nob_sb_append_cstr(&sb, "\x84\xc0");     // test al, al
-                nob_sb_append_cstr(&sb, "\x0f\x84");     // jz
-                size_t operand_byte_addr = sb.count;
-                nob_da_append_many(&sb, "\x00\x00\x00\x00", 4);
+                asm_jmp_if_zero(&sb);
+                size_t operand_byte_addr = sb.count - 4;
                 size_t src_byte_addr = sb.count;
 
                 Backpatch bp = {
@@ -233,11 +216,8 @@ bool jit_compile(Ops ops, Code *code)
             } break;
 
             case OP_JUMP_IF_NONZERO: {
-                nob_sb_append_cstr(&sb, "\x8a\x07");     // mov al, byte [rdi]
-                nob_sb_append_cstr(&sb, "\x84\xc0");     // test al, al
-                nob_sb_append_cstr(&sb, "\x0f\x85");     // jnz
-                size_t operand_byte_addr = sb.count;
-                nob_da_append_many(&sb, "\x00\x00\x00\x00", 4);
+                asm_jmp_if_not_zero(&sb);
+                size_t operand_byte_addr = sb.count - 4;
                 size_t src_byte_addr = sb.count;
 
                 Backpatch bp = {
@@ -252,6 +232,7 @@ bool jit_compile(Ops ops, Code *code)
             default: assert(0 && "Unreachable");
         }
     }
+
     nob_da_append(&addrs, sb.count);
 
     for (size_t i = 0; i < backpatches.count; ++i) {
@@ -259,30 +240,19 @@ bool jit_compile(Ops ops, Code *code)
         int32_t src_addr = bp.src_byte_addr;
         int32_t dst_addr = addrs.items[bp.dst_op_index];
         int32_t operand = dst_addr - src_addr;
-        memcpy(&sb.items[bp.operand_byte_addr], &operand, sizeof(operand));
+
+        asm_backpatch(&sb, bp.operand_byte_addr, operand);
     }
 
-    nob_sb_append_cstr(&sb, "\xC3");
+    asm_post(&sb);
 
-    code->len = sb.count;
-    code->run = mmap(NULL, sb.count, PROT_EXEC | PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (code->run == MAP_FAILED) {
-        nob_log(NOB_ERROR, "Could not allocate executable memory: %s", strerror(errno));
-        nob_return_defer(false);
-    }
+    ExecutableBuffer buf = alloc_executable_buffer(sb);
 
-    // TODO: switch the permissions to only-exec after finishing copying the code. See mprotect(2).
-    memcpy(code->run, sb.items, code->len);
-
-defer:
-    if (!result) {
-        free_code(*code);
-        memset(code, 0, sizeof(*code));
-    }
     nob_da_free(sb);
     nob_da_free(backpatches);
     nob_da_free(addrs);
-    return result;
+
+    return buf;
 }
 
 bool generate_ops(const char *file_path, Ops *ops)
@@ -382,7 +352,7 @@ int main(int argc, char **argv)
 {
     int result = 0;
     Ops ops = {0};
-    Code code = {0};
+    ExecutableBuffer buf = {0};
     void *memory = NULL;
 
     const char *program = nob_shift_args(&argc, &argv);
@@ -420,16 +390,18 @@ int main(int argc, char **argv)
         if (!interpret(ops)) nob_return_defer(1);
     } else {
         nob_log(NOB_INFO, "JIT: on");
-        if (!jit_compile(ops, &code)) nob_return_defer(1);
-        memory = malloc(JIT_MEMORY_CAP);
+
+        buf = jit_compile(ops);
+        if (!buf.run) nob_return_defer(1);
+        if (!memory) memory = malloc(JIT_MEMORY_CAP);
         memset(memory, 0, JIT_MEMORY_CAP);
         assert(memory != NULL);
-        code.run(memory);
+        buf.run(memory);
     }
 
 defer:
     nob_da_free(ops);
-    free_code(code);
+    free_executable_buffer(buf);
     free(memory);
     return result;
 }
@@ -444,4 +416,4 @@ defer:
 //   Probably on the level of IR.
 // TODO: Windows port.
 //   - [ ] Platform specific mapping of executable memory
-//   - [ ] Platform specific stdio from JIT compiled machine code
+//   - [x] Platform specific stdio from JIT compiled machine code
