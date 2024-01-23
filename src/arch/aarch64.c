@@ -1,12 +1,12 @@
 #include "arch.h"
 #include "platform.h"
 
-void asm_reg_imm(Nob_String_Builder* sb, uint8_t reg, uint32_t action, int32_t value) {
+static void asm_reg_imm(Nob_String_Builder* sb, uint8_t reg, uint32_t action, int32_t value) {
     uint32_t x = (value << 5) | reg | action;
     nob_da_append_many(sb, &x, sizeof(x));
 }
 
-void asm_mov_constant(Nob_String_Builder* sb, uint8_t reg, uint64_t value) {
+static void asm_mov_constant(Nob_String_Builder* sb, uint8_t reg, uint64_t value) {
     asm_reg_imm(sb, reg, 0xD2800000, value & 0xFFFF);
     if ((value >> 16) & 0xFFFF) asm_reg_imm(sb, reg, 0xF2A00000, (value >> 16) & 0xFFFF);
     if ((value >> 32) & 0xFFFF) asm_reg_imm(sb, reg, 0xF2C00000, (value >> 32) & 0xFFFF);

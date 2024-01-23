@@ -4,19 +4,19 @@
 #include "platform.h"
 #include "arch.h"
 
-#ifdef _WIN32
-    #include "platform/windows.c"
+#if defined(_WIN32)
+   #include "platform/windows.c"
 #else
-    #include "platform/posix.c"
+   #include "platform/posix.c"
 #endif
 
-#if __aarch64__
-    #include "arch/aarch64.c"
-#elif __x86_64__
-    #include "arch/x86_64.c"
+#if defined(__aarch64__) || defined(_M_ARM64)
+   #include "arch/aarch64.c"
+#elif defined(__x86_64__) || defined(_M_AMD64)
+   #include "arch/x86_64.c"
 #endif
 
-#define JIT_MEMORY_CAP (10*1000*1000)
+#define JIT_MEMORY_CAP (16*1000*1000)
 
 typedef struct
 {
@@ -167,6 +167,8 @@ ExecutableBuffer jit_compile(Ops ops)
     Nob_String_Builder sb = {0};
     Backpatches backpatches = {0};
     Addrs addrs = {0};
+
+    asm_pre(&sb);
 
     for (size_t i = 0; i < ops.count; ++i) {
         Op op = ops.items[i];
@@ -415,5 +417,5 @@ defer:
 // TODO: Optimize pattern [-] to just set the current cell to 0.
 //   Probably on the level of IR.
 // TODO: Windows port.
-//   - [ ] Platform specific mapping of executable memory
+//   - [x] Platform specific mapping of executable memory
 //   - [x] Platform specific stdio from JIT compiled machine code

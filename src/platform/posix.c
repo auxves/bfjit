@@ -9,7 +9,7 @@
 ExecutableBuffer alloc_executable_buffer(Nob_String_Builder sb) {
     ExecutableBuffer buf = {
         .len = sb.count,
-        .run = mmap(NULL, sb.count, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_JIT, -1, 0),
+        .run = mmap(NULL, sb.count, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0),
     };
 
     if (buf.run == MAP_FAILED) {

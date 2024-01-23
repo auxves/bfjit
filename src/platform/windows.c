@@ -7,18 +7,10 @@
 #include "platform.h"
 
 ExecutableBuffer alloc_executable_buffer(Nob_String_Builder sb) {
-    SYSTEM_INFO system_info;
-    GetSystemInfo(&system_info);
-
     ExecutableBuffer buf = {
         .len = sb.count,
-        .run = VirtualAlloc(NULL, system_info.dwPageSize, MEM_COMMIT, PAGE_READWRITE),
+        .run = VirtualAlloc(NULL, sb.count, MEM_COMMIT, PAGE_READWRITE),
     };
-
-    // if (buf.run == MAP_FAILED) {
-    //     nob_log(NOB_ERROR, "Could not allocate executable memory: %s", strerror(errno));
-    //     return (ExecutableBuffer) {0};
-    // }
 
     memcpy(buf.run, sb.items, buf.len);
 

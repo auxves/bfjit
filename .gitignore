@@ -2,3 +2,7 @@
 
 .vscode
 *.dSYM
+*.exe
+*.obj
+*.ilk
+*.pdb
