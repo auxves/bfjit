@@ -3,6 +3,6 @@
 ## Quick Start
 
 ```console
-$ cc -o bfjit bfjit.c
+$ cc -o bfjit src/main.c -Iinclude
 $ ./bfjit ./examples/hello.bf
 ```

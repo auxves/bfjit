@@ -28,9 +28,17 @@ void asm_decrement_head_value(Nob_String_Builder* sb, uint32_t value) {
 void asm_write(Nob_String_Builder* sb) {
     nob_sb_append_cstr(sb, "\x57");                                         // push rdi
 
+    nob_da_append_many(sb, "\xC8\x28\x00\x00", 4);                          // enter 40, 0
+
+#if defined(_WIN32)
+    nob_da_append_many(sb, "\x49\xC7\xC0\x01\x00\x00\x00", 7);              // mov r8, 1
+    nob_da_append_many(sb, "\x48\x89\xFA", 3);                              // mov rdx, rdi
+    nob_da_append_many(sb, "\x48\xC7\xC1\x01\x00\x00\x00", 7);              // mov rcx, 1
+#else
     nob_da_append_many(sb, "\x48\xc7\xc2\x01\x00\x00\x00", 7);              // mov rdx, 1
     nob_sb_append_cstr(sb, "\x48\x89\xfe");                                 // mov rsi, rdi
     nob_da_append_many(sb, "\x48\xc7\xc7\x01\x00\x00\x00", 7);              // mov rdi, 1
+#endif
 
     nob_sb_append_cstr(sb, "\x48\xB8");                                     // mov rax, 
     uint64_t write_address = (uint64_t) get_platform_write_address();
@@ -38,21 +46,33 @@ void asm_write(Nob_String_Builder* sb) {
 
     nob_sb_append_cstr(sb, "\xff\xd0");                                     // call rax
 
+    nob_da_append_many(sb, "\xC9", 1);                                      // leave
+
     nob_sb_append_cstr(sb, "\x5f");                                         // pop rdi
 }
 
 void asm_read(Nob_String_Builder* sb) {
     nob_sb_append_cstr(sb, "\x57");                                         // push rdi
 
+    nob_da_append_many(sb, "\xC8\x28\x00\x00", 4);                          // enter 40, 0
+
+#if defined(_WIN32)
+    nob_da_append_many(sb, "\x49\xC7\xC0\x01\x00\x00\x00", 7);              // mov r8, 1
+    nob_da_append_many(sb, "\x48\x89\xFA", 3);                              // mov rdx, rdi
+    nob_da_append_many(sb, "\x48\xC7\xC1\x00\x00\x00\x00", 7);              // mov rcx, 0
+#else
     nob_da_append_many(sb, "\x48\xc7\xc2\x01\x00\x00\x00", 7);              // mov rdx, 1
     nob_sb_append_cstr(sb, "\x48\x89\xfe");                                 // mov rsi, rdi
     nob_da_append_many(sb, "\x48\xc7\xc7\x00\x00\x00\x00", 7);              // mov rdi, 0
+#endif
 
     nob_sb_append_cstr(sb, "\x48\xB8");                                     // mov rax, 
     uint64_t read_address = (uint64_t) get_platform_read_address();
     nob_da_append_many(sb, &read_address, sizeof(read_address));
 
     nob_sb_append_cstr(sb, "\xff\xd0");                                     // call rax
+
+    nob_da_append_many(sb, "\xC9", 1);                                      // leave
 
     nob_sb_append_cstr(sb, "\x5f");                                         // pop rdi
 }
@@ -71,7 +91,11 @@ void asm_jmp_if_not_zero(Nob_String_Builder* sb) {
     nob_da_append_many(sb, "\x00\x00\x00\x00", 4);
 }
 
-void asm_pre(Nob_String_Builder* sb) { }
+void asm_pre(Nob_String_Builder* sb) {
+#if defined(_WIN32)
+    nob_da_append_many(sb, "\x48\x89\xCF", 3);      // mov rdi, rcx
+#endif
+}
 
 void asm_post(Nob_String_Builder* sb) {
     nob_sb_append_cstr(sb, "\xC3");                 // ret
