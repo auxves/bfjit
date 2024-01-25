@@ -10,6 +10,3 @@ typedef struct
 
 ExecutableBuffer alloc_executable_buffer(Nob_String_Builder sb);
 void free_executable_buffer(ExecutableBuffer buf);
-
-void* get_platform_write_address();
-void* get_platform_read_address();

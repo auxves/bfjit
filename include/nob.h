@@ -137,6 +137,9 @@ Nob_File_Type nob_get_file_type(const char *path);
         (da)->count += new_items_count;                                                     \
     } while (0)
 
+#define nob_da_append_lit(da, new_items) nob_da_append_many(da, new_items, sizeof(new_items))
+#define nob_sb_append_lit(da, new_items) nob_da_append_many(da, new_items, (sizeof(new_items)-1))
+
 typedef struct {
     char *items;
     size_t count;

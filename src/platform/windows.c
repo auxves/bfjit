@@ -24,10 +24,10 @@ void free_executable_buffer(ExecutableBuffer buf) {
     VirtualFree(buf.run, 0, MEM_RELEASE);
 }
 
-void* get_platform_write_address() {
-    return _write;
+void api_write_stdout(void* buf) {
+    _write(1, buf, 1);
 }
 
-void* get_platform_read_address() {
-    return _read;
+void api_read_stdin(void* buf) {
+    _read(0, buf, 1);
 }

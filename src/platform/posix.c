@@ -27,10 +27,10 @@ void free_executable_buffer(ExecutableBuffer buf) {
     munmap(buf.run, buf.len);
 }
 
-void* get_platform_write_address() {
-    return write;
+void api_write_stdout(void* buf) {
+    write(1, buf, 1);
 }
 
-void* get_platform_read_address() {
-    return read;
+void api_read_stdin(void* buf) {
+    read(0, buf, 1);
 }
